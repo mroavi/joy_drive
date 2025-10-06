@@ -1,0 +1,19 @@
+# Byte-compiled / cached files
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Test output / temp
+*.log
+*.tmp
+
+# Editor / IDE files
+.vscode/
+*.swp
+*.swo
+*~
+
+# ROS build artifacts (not needed here, but safe to include)
+build/
+install/
+log/
