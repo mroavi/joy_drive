@@ -16,6 +16,7 @@ class JoyDrive(Node):
         self.declare_parameter('speed', 0.5)
         self.declare_parameter('turn_speed', 0.5)
         self.declare_parameter('turbo_multiplier', 2.0)
+        self.declare_parameter('ramp_rate', 0.05)  # max delta per update (m/s or rad/s)
 
         # Get parameters
         self.forward_button = self.get_parameter('forward_button').get_parameter_value().integer_value
@@ -25,6 +26,7 @@ class JoyDrive(Node):
         self.speed = self.get_parameter('speed').get_parameter_value().double_value
         self.turn_speed = self.get_parameter('turn_speed').get_parameter_value().double_value
         self.turbo_multiplier = self.get_parameter('turbo_multiplier').get_parameter_value().double_value
+        self.ramp_rate = self.get_parameter('ramp_rate').get_parameter_value().double_value
 
         self.get_logger().info("joy_drive node started with parameters:")
         self.get_logger().info(f"  forward_button: {self.forward_button}")
@@ -34,6 +36,7 @@ class JoyDrive(Node):
         self.get_logger().info(f"  speed: {self.speed}")
         self.get_logger().info(f"  turn_speed: {self.turn_speed}")
         self.get_logger().info(f"  turbo_multiplier: {self.turbo_multiplier}")
+        self.get_logger().info(f"  ramp_rate: {self.ramp_rate}")
 
         self.publisher_ = self.create_publisher(
             Twist, '/diff_cont/cmd_vel_unstamped', 10
@@ -43,22 +46,47 @@ class JoyDrive(Node):
             Joy, '/joy', self.joy_callback, 10
         )
 
-    def joy_callback(self, msg: Joy):
-        twist = Twist()
+        # Target and current velocities
+        self.target_linear_x = 0.0
+        self.target_angular_z = 0.0
+        self.current_linear_x = 0.0
+        self.current_angular_z = 0.0
 
+        # Timer to update and publish smoothed velocity
+        self.create_timer(0.05, self.update_velocity)  # 20Hz
+
+    def joy_callback(self, msg: Joy):
         turbo_pressed = msg.buttons[self.turbo_button]
         speed = self.speed * self.turbo_multiplier if turbo_pressed else self.speed
         turn_speed = self.turn_speed * self.turbo_multiplier if turbo_pressed else self.turn_speed
 
         if msg.buttons[self.forward_button]:
-            twist.linear.x = speed
+            self.target_linear_x = speed
         elif msg.buttons[self.backward_button]:
-            twist.linear.x = -speed
+            self.target_linear_x = -speed
         else:
-            twist.linear.x = 0.0
+            self.target_linear_x = 0.0
 
-        twist.angular.z = msg.axes[self.angular_axis] * turn_speed
+        self.target_angular_z = msg.axes[self.angular_axis] * turn_speed
+
+    def update_velocity(self):
+        # Smoothly move current velocities towards target velocities
+        self.current_linear_x = self._smooth_step(
+            self.current_linear_x, self.target_linear_x, self.ramp_rate
+        )
+        self.current_angular_z = self._smooth_step(
+            self.current_angular_z, self.target_angular_z, self.ramp_rate
+        )
+
+        twist = Twist()
+        twist.linear.x = self.current_linear_x
+        twist.angular.z = self.current_angular_z
         self.publisher_.publish(twist)
+
+    def _smooth_step(self, current, target, step):
+        if abs(target - current) < step:
+            return target
+        return current + step if target > current else current - step
 
 
 def main():
