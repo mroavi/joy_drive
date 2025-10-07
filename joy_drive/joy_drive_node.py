@@ -78,6 +78,11 @@ class JoyDrive(Node):
             self.current_angular_z, self.target_angular_z, self.ramp_rate
         )
 
+        # Stop publishing when both velocities are effectively zero
+        if abs(self.current_linear_x) < 1e-3 and abs(self.current_angular_z) < 1e-3:
+            return
+
+        # Publish only when movement is present
         twist = Twist()
         twist.linear.x = self.current_linear_x
         twist.angular.z = self.current_angular_z
