@@ -39,7 +39,7 @@ class JoyDrive(Node):
         self.get_logger().info(f"  ramp_rate: {self.ramp_rate}")
 
         self.publisher_ = self.create_publisher(
-            Twist, '/diff_cont/cmd_vel_unstamped', 10
+            Twist, 'cmd_vel', 10
         )
 
         self.subscription = self.create_subscription(
